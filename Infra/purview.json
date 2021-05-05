@@ -1,0 +1,37 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "name":{
+            "type":"string",
+            "defaultValue": "azurepurviewpoc"
+        },
+      "location":{
+            "type":"string",
+            "defaultValue":"westeurope"
+        }
+    },
+    "resources": [
+      {
+        "name": "[parameters('name')]",
+        "type": "Microsoft.Purview/accounts",
+        "apiVersion": "2020-12-01-preview",
+        "location": "[parameters('location')]",
+        "identity": {
+          "type": "SystemAssigned"
+        },
+        "properties": {
+          "networkAcls": {
+            "defaultAction": "Allow"
+          }
+        },
+        "dependsOn": [],
+        "sku": {
+          "name": "Standard",
+          "capacity": "4"
+        },
+        "tags": {}
+      }
+    ],
+    "outputs": {}
+  }

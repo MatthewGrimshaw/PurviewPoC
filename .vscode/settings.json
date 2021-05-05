@@ -1,0 +1,12 @@
+{
+    "python.pythonPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\Python37_64\\python.exe",
+    "azureFunctions.deploySubpath": "AzureFunctions",
+    "azureFunctions.projectSubpath": "PurviewPoC\\AzureFunctions",
+    "azureFunctions.scmDoBuildDuringDeployment": true,
+    "azureFunctions.pythonVenv": ".venv",
+    "azureFunctions.projectLanguage": "Python",
+    "azureFunctions.projectRuntime": "~3",
+    "debug.internalConsoleOptions": "neverOpen",
+    "jupyter.jupyterServerType": "local",
+    "git.ignoreLimitWarning": true
+}
