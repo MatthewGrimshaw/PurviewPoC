@@ -1,7 +1,7 @@
 # variables - these need to be updated
 $tenantID = '<>'
 $SubscriptionID = '<>'
-$suffix = '<>' ## 
+$suffix = '<>'
 $location = '<>'
 $expertupn = '<>'
 $stewardupn = '<>'
@@ -15,9 +15,9 @@ $appInsightsName = $suffix + 'azurefunctionsappinsight'
 $logAnalyticsWorkspaceName = $suffix + 'loganalyticsworkspace'
 $keyVaultName = $suffix + 'purviewpockeyvault'
 $functionAppName = $suffix + 'azurefunctionapp'
-$storageaccountname = $suffix + 'purviewpoc'
+$storageaccountname = $suffix + 'purviewpocsa'
 $appServicePlanName = $suffix + 'appserviceplan'
-$serviceprincipalname = $suffix + 'purviewpoc'
+$serviceprincipalname = $suffix + 'purviewpocsp'
 
 
 #install Azure cli
@@ -137,6 +137,7 @@ $instrumentationKey = (az monitor app-insights component show `
 az keyvault create --location $location --name $keyVaultName --resource-group $resourceGroupName
 
 # create secrets
+
 az keyvault secret set --name 'PURVIEWNAME' --vault-name $keyVaultName --value $purviewAccountName
 az keyvault secret set --name 'AZURECLIENTID' --vault-name $keyVaultName --value $appId
 az keyvault secret set --name 'AZURETENANTID' --vault-name $keyVaultName --value $tenantID
@@ -190,14 +191,16 @@ az functionapp config appsettings set --name $functionAppName --resource-group $
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryOutPutQueue=purview-output-queue"
 
 # Deploy finction app
-$publishFolder = ".\PurviewPoC\AzureFunctions\"
+$publishFolder = ".\AzureFunctions\"
 
 # create the zip
 $publishZip = "publish.zip"
 if(Test-path $publishZip) {Remove-item $publishZip}
 Add-Type -assembly system.io.compression.filesystem
-[io.compression.zipfile]::CreateFromDirectory($publishFolder, ".\PurviewPoC\$publishZip")
+[io.compression.zipfile]::CreateFromDirectory($publishFolder, "$publishZip")
 
+#wait 2 minutes for zip cration to complete
+start-sleep -Seconds 120
 # deploy the zipped package
 az functionapp deployment source config-zip `
 --resource-group $resourceGroupName --name $functionAppName --src $publishZip
