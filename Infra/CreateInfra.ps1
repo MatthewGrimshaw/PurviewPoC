@@ -95,7 +95,7 @@ $appId = $(az ad sp list --display-name $serviceprincipalname --query [].appId -
 # Create storage queues
 push-location
 set-location '.\Infra'
-az deployment group create --resource-group $resourceGroupName --template-file .\azurestorage.template.json --parameters "name=$purviewAccountName"  "location=$location"
+az deployment group create --resource-group $resourceGroupName --template-file .\azurestorage.template.json --parameters "name=$storageaccountname"  "location=$location"
 Pop-Location
 
 
