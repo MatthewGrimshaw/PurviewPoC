@@ -49,6 +49,7 @@ az account set --subscription $subscriptionID
 az provider register --namespace Microsoft.Purview
 az provider register --namespace Microsoft.Storage
 az provider register --namespace Microsoft.EventHub
+az provider register --namespace Microsoft.DataFactory
 
 # Create Resource Group
 az group create --location $location --name $resourceGroupName
@@ -208,7 +209,7 @@ if(test-path $publishZip){remove-item $publishZip}
 
 # deploy the zipped package
 az functionapp deployment source config-zip `
---resource-group $resourceGroupName --name $functionAppName --src $publishZip --build-remote True
+--resource-group $resourceGroupName --name $functionAppName --src $publishZip 
 
 
 
@@ -223,3 +224,13 @@ $functionkey = az functionapp function keys list --function-name 'GetBegreper' -
 #
 # $url = "https://$functionAppName.azurewebsites.net/api/GetBegreper?code=$functionkey&search=bulkImport"
 # Invoke-RestMethod -Method 'Get' -Uri $url
+
+
+Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force
+Install-Module -Name Az.Account -Scope CurrentUser -Repository PSGallery -Force
+Install-Module -Name Az.Storage -Scope CurrentUser -Repository PSGallery -Force
+Install-Module -Name Az.DataFactory -Scope CurrentUser -Repository PSGallery -Force
+Import-Module -Name Az 
+Import-Module -Name Az.Account 
+Import-Module -Name Az.Storage 
+Import-Module -Name Az.Databricks 

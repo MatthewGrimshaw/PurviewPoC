@@ -53,6 +53,8 @@ def main(msg: func.QueueMessage):
     if len(res['body']) == 1:
         singleTerm = True
 
+    #    
+    logging.info("singleTerm: %s" %(singleTerm))
     # parse the json
     for objBody in res['body']:
         termValue = parse_json_recursively(objBody, "termName")
@@ -67,16 +69,21 @@ def main(msg: func.QueueMessage):
             with redirect_stdout(f):
                 pv.main()
 
-            #output = subprocess.run(["pv", "search", "advanced", "--keywords=" + re.escape(termValue)], stdout=subprocess.PIPE)
-            #decodedOutput = (output.stdout).decode('"unicode_escape"')
-            #if re.search('\"name\": \"' + re.escape(termValue) + '\"', decodedOutput):
-            
             #check the '@search.count' tag in the search result - it it is 0 then then term doen't exist in the catalog
-            if json.loads(f.getvalue())['@search.count'] == 0:                
+            if json.loads(f.getvalue())['@search.count'] == 0 and singleTerm == False:                
                 listTermName.append(termName.replace('"', ""))
                 logging.info("Term Name %s will be bulk-imported" %(termValue))
+            # parse the search result to see if the term is already in the catalog
             else:
-                importTerm = False  
+                for element in json.loads(f.getvalue())['value']:
+                    qualifiedName = parse_json_recursively(element, 'name')
+                    # try all combinations of escaping
+                    if qualifiedName != None and (qualifiedName == termValue \
+                    or qualifiedName == re.escape(termValue) \
+                    or re.escape(qualifiedName) == re.escape(termValue) \
+                    or re.escape(qualifiedName) == termValue):
+                        importTerm = False
+                        logging.info("term already exists and will not be imported")
                       
         else:
             logging.error("could not retrieve the name value from the JSON")
