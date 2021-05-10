@@ -19,7 +19,12 @@ $storageaccountname = $suffix + 'purviewpocsa'
 $appServicePlanName = $suffix + 'appserviceplan'
 $serviceprincipalname = $suffix + 'purviewpocsp'
 
-
+#Check 7-Zip ios installed
+$7zipPath = "$env:ProgramFiles\7-Zip\7z.exe"
+if(test-path $7zipPath){Set-Alias 7z $7zipPath}
+else{
+  write-output "please ensure 7Zip is installed from: https://www.7-zip.org/"
+}
 #install Azure cli
 ## Check AZ is installed
 try {
@@ -188,27 +193,33 @@ az functionapp config appsettings set --name $functionAppName --resource-group $
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "stewardId=$stewardId"
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryGuid=$glossaryGuid"
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "AzureWebJobsStorage=$storageEndpoint"
-az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryOutPutQueue=purview-output-queue"
 
 # Deploy finction app
-$publishFolder = ".\AzureFunctions\"
+$publishFolder = ".\AzureFunctions\*"
 
 # create the zip
 $publishZip = "publish.zip"
-if(Test-path $publishZip) {Remove-item $publishZip}
-Add-Type -assembly system.io.compression.filesystem
-[io.compression.zipfile]::CreateFromDirectory($publishFolder, "$publishZip")
 
-#wait 2 minutes for zip cration to complete
-start-sleep -Seconds 120
+#remove zip if it exists
+if(test-path $publishZip){remove-item $publishZip}
+
+# need to use 7-zip as Powershell uses the wrong encoding for Linux
+7z a -mx=9 $publishZip $publishFolder
+
 # deploy the zipped package
 az functionapp deployment source config-zip `
---resource-group $resourceGroupName --name $functionAppName --src $publishZip
+--resource-group $resourceGroupName --name $functionAppName --src $publishZip --build-remote True
+
+
 
 #Get the function key
 $functionkey = az functionapp function keys list --function-name 'GetBegreper' --name $functionAppName --resource-group $resourceGroupName --query 'default' --output tsv
 
-# construct the url to trigger the import of terms
-$url = "https://$functionAppName.azurewebsites.net/api/GetBegreper?code=$functionkey&search=bulkImport"
-
-Invoke-RestMethod -Method 'Get' -Uri $url
+# construct the url to trigger the import of terms. 
+# There are some manual steps that need to be run first 
+# 1) Create Glossay Guid
+# 2) Load Azure Storage Python module 
+# blocking out the next 2 line untill these issues are fixined / automated
+#
+# $url = "https://$functionAppName.azurewebsites.net/api/GetBegreper?code=$functionkey&search=bulkImport"
+# Invoke-RestMethod -Method 'Get' -Uri $url

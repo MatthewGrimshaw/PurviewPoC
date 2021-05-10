@@ -13,8 +13,6 @@ import unicodedata
 import io
 from contextlib import redirect_stdout
 
-
-
 def parse_json_recursively(json_object, target_key):    
     if type(json_object) is dict and json_object:
             for key in json_object:
