@@ -95,7 +95,7 @@ def main(msg: func.QueueMessage):
             if importTerm == True and singleTerm == False:            
                 listdefinitionName.append(definitionName.replace('"', ""))
             elif importTerm == True and singleTerm == True:
-                sys.argv = ["pv", "glossary", glossaryGuid, termName.replace('"', ""), "--longDescription=" + definitionValue.replace('"', "")]
+                sys.argv = ["pv", "glossary", "createTerm", glossaryGuid, termName.replace('"', ""), "--longDescription=" + definitionValue.replace('"', "")]
                 logging.info("Term Name %s will be imported as a single item" %(termValue))  
             
         else:

@@ -209,7 +209,7 @@ if(test-path $publishZip){remove-item $publishZip}
 
 # deploy the zipped package
 az functionapp deployment source config-zip `
---resource-group $resourceGroupName --name $functionAppName --src $publishZip 
+--resource-group $resourceGroupName --name $functionAppName --src $publishZip --build-remote $true
 
 
 
