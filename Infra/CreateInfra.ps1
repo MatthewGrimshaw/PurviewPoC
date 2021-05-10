@@ -226,11 +226,3 @@ $functionkey = az functionapp function keys list --function-name 'GetBegreper' -
 # Invoke-RestMethod -Method 'Get' -Uri $url
 
 
-Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force
-Install-Module -Name Az.Account -Scope CurrentUser -Repository PSGallery -Force
-Install-Module -Name Az.Storage -Scope CurrentUser -Repository PSGallery -Force
-Install-Module -Name Az.DataFactory -Scope CurrentUser -Repository PSGallery -Force
-Import-Module -Name Az 
-Import-Module -Name Az.Account 
-Import-Module -Name Az.Storage 
-Import-Module -Name Az.Databricks 
