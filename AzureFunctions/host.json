@@ -1,10 +1,27 @@
 {
   "version": "2.0",
+  "extensions": {
+    "queues": {
+      "batchSize": 1,
+      "maxDequeueCount": 5,
+      "newBatchThreshold": 1
+    }
+  },
   "logging": {
+    "logLevel": {
+      "Function.CreateGlossaryItems": "Warning",
+      "Function.GetBeGreper": "Information",
+      "Function.getEntities": "Information",
+      "Host": "Error",
+      "Function": "Warning",
+      "Host.Aggregator": "Warning",
+      "default": "Warning"
+    },
     "applicationInsights": {
       "samplingSettings": {
         "isEnabled": true,
-        "excludedTypes": "Request"
+        "excludedTypes": "Request;Exception",
+        "includedTypes": "Dependency;Event;PageView;Trace"
       }
     }
   },

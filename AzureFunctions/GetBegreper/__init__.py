@@ -100,7 +100,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             while loop == True:
                 # The &size= value can actually go up 1000, but Azure Storage Queues only support max 64kb messages, so 150 seems to be the upper limit
                 # The bigger the size, the less messages are written, and the faster they are imported
-                xbegrepUrl = begrepUrl + '?page=' + (str(count)) + '&size=145'            
+                # if there are too many terms in one message the import can fail. Best to set it to 75
+                xbegrepUrl = begrepUrl + '?page=' + (str(count)) + '&size=75'            
                 logging.info("The url is :" + xbegrepUrl)            
                 try:
                     with urllib.request.urlopen(xbegrepUrl ) as url:

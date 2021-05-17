@@ -1,7 +1,7 @@
 # variables - these need to be updated
 $tenantID = '<>'
 $SubscriptionID = '<>'
-$suffix = '<>'
+$suffix = '<>' ## 
 $location = '<>'
 $expertupn = '<>'
 $stewardupn = '<>'
@@ -21,8 +21,9 @@ $serviceprincipalname = $suffix + 'purviewpocsp'
 
 #Check 7-Zip ios installed
 $7zipPath = "$env:ProgramFiles\7-Zip\7z.exe"
-if(test-path $7zipPath){Set-Alias 7z $7zipPath}
-else{
+if(test-path $7zipPath){
+  Set-Alias 7z $7zipPath
+}else{
   write-output "please ensure 7Zip is installed from: https://www.7-zip.org/"
 }
 #install Azure cli
@@ -50,6 +51,7 @@ az provider register --namespace Microsoft.Purview
 az provider register --namespace Microsoft.Storage
 az provider register --namespace Microsoft.EventHub
 az provider register --namespace Microsoft.DataFactory
+az provider register --namespace Microsoft.OperationalInsights 
 
 # Create Resource Group
 az group create --location $location --name $resourceGroupName
@@ -195,6 +197,9 @@ az functionapp config appsettings set --name $functionAppName --resource-group $
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryGuid=$glossaryGuid"
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "AzureWebJobsStorage=$storageEndpoint"
 
+#wait 2 minutes for the function app to initialise
+Start-Sleep -s 120
+
 # Deploy finction app
 $publishFolder = ".\AzureFunctions\*"
 
@@ -219,9 +224,14 @@ $functionkey = az functionapp function keys list --function-name 'GetBegreper' -
 # construct the url to trigger the import of terms. 
 # There are some manual steps that need to be run first 
 # 1) Create Glossay Guid
-# 2) Load Azure Storage Python module 
-# blocking out the next 2 line untill these issues are fixined / automated
 #
+#$glossaryGuid=(az rest --method get --url "https://$purviewAccountName.catalog.purview.azure.com/api/atlas/v2/glossary" --resource "73c2949e-da2d-457a-9607-fcc665198967" | ConvertFrom-Json).guid
+#az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryGuid=$glossaryGuid"
+#
+# 2) Load Azure Storage Python module 
+# blocking out the next 2 line until these issues are fixed / automated
+#
+# 3) Run the Function to initate a bulk import of terms
 # $url = "https://$functionAppName.azurewebsites.net/api/GetBegreper?code=$functionkey&search=bulkImport"
 # Invoke-RestMethod -Method 'Get' -Uri $url
 
