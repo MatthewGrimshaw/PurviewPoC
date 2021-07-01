@@ -12,6 +12,8 @@ import re
 import unicodedata
 import io
 from contextlib import redirect_stdout
+from random import randrange
+import tempfile
 
 
 def parse_json_recursively(json_object, target_key):    
@@ -41,13 +43,10 @@ def main(msg: func.QueueMessage):
     # get the json fron the queue
     res = json.loads(result)
     
-    # create empty lists for bulk update
-    listTermName = []
-    listdefinitionName = []
-    listresourceName= []
-    listresourceUrlName = []
+    # create empty list for bulk update
+    payload_file = []
 
-    glossaryGuid = "--glossaryGuid=" + os.environ.get('glossaryGuid')
+    glossaryGuid = os.environ.get('glossaryGuid')
 
     #calculate if it is a single term to be updated or a bulk update
     singleTerm = False
@@ -100,35 +99,36 @@ def main(msg: func.QueueMessage):
                 definitionValue = parse_json_recursively(objBody, "longDescription")
                 if definitionValue != None:
                     definitionName = "--longDescription=" + unicodedata.normalize('NFKD', definitionValue)
-                    if singleTerm == False:
-                        logging.warning("Term Name %s will be bulk-imported" %(termValue))
-                        # append termName and defintionName to the respective lists that will be bulk imported
-                        listTermName.append(termName.replace('"', ""))
-                        listdefinitionName.append(definitionName.replace('"', ""))
+                    if singleTerm == False:                        
+                        #check termName is not already in the list
+                        if termName.replace('"', "") not in json.dumps(payload_file):
+                            logging.warning("Term Name %s will be bulk-imported" %(termValue))
+                            # append termName and defintionName to the payload file that will be bulk imported 
+                            anchor = {"glossaryGuid" : glossaryGuid}
+                            json_file = {}
+                            json_file['anchor'] = anchor
+                            json_file['longDescription'] = definitionName.replace('"', "")                     
+                            json_file['name'] = termName.replace('"', "")
+                            payload_file.append(json_file)                            
                     elif singleTerm == True:
                         # import a single term straight away
                         sys.argv = ["pv", "glossary", "createTerm", glossaryGuid, termName.replace('"', ""), "--longDescription=" + definitionValue.replace('"', "")]
                         logging.warning("Term Name %s will be imported as a single item" %(termValue))
-
-                        # get the resourceName for a single item
-                        resourceNameValue = parse_json_recursively(objBody, "resourceName")
-                        if resourceNameValue != None:
-                            resourceName = "--resourceName=" + unicodedata.normalize('NFKD', resourceNameValue)
-                            sys.argv += [resourceName.replace('"', "")]
-                        else:
-                            logging.warning("Could not retreive the resourceName value")
-                        #get the resourceURL
-                        resourceUrlValue = parse_json_recursively(objBody, "resourceUrl")
-                        if resourceUrlValue != None:
-                            resourceUrl = "--resourceUrl=" + unicodedata.normalize('NFKD', resourceUrlValue)
-                            sys.argv += [resourceUrl.replace('"', "")]                            
-                        else:
-                            logging.warning("Could not retreive the resourceURL value")  
-                            #import
-                        expertId = "--expertId=" + os.environ.get('expertId')
-                        sys.argv += [expertId]
-                        stewardId = "--stewardId=" + os.environ.get('stewardId')
-                        sys.argv += [stewardId] 
+                        anchor = {"glossaryGuid" : glossaryGuid}
+                        json_file = {}
+                        json_file['anchor'] = anchor
+                        json_file['longDescription'] = definitionName.replace('"', "")                     
+                        json_file['name'] = termName.replace('"', "")
+                        singlePayload = []
+                        singlePayload.append(json_file)
+                        
+                        fileName = str(randrange(6000)) + 'payload.json'
+                        tempFilePath = os.path.join(tempfile.gettempdir(), fileName)
+                        f = open(tempFilePath, "w+") 
+                        f.write(json.dumps(singlePayload))
+                        f.flush()
+                        f.close
+                        sys.argv = ["pv", "glossary", "createTerm", "--payload-file=" + tempFilePath]
                         logging.warning("Term will be imported: The Arguments are: %s "  %(sys.argv))
                         pv.main()
                 else:
@@ -137,17 +137,16 @@ def main(msg: func.QueueMessage):
 
     logging.warning("Number of items parsed is: %s" %(len(res['body'])))
     # bulk update
-    if(len(listTermName) > 0):
-        sys.argv = ["pv", "glossary", "createTerms", glossaryGuid.replace('"', "")]
-        #iterate through lists to get values
-        listCount = 0
-        for ltn in listTermName:
-            sys.argv += [ltn.replace(".", " ")]
-        for ldn in listdefinitionName:
-            sys.argv += [ldn.replace(".", " ")]
-            listCount += 1
-            if listCount == len(listTermName):
-                break
+    if(len(payload_file) > 0):
+        fileName = str(randrange(6000)) + 'payload.json'
+        tempFilePath = os.path.join(tempfile.gettempdir(), fileName)
+        f = open(tempFilePath, "w+") 
+        f.write(json.dumps(payload_file))
+        f.flush()
+        f.close
+        sys.argv = ["pv", "glossary", "createTerms", "--payload-file=" + tempFilePath]
+        logging.warning("Term will be imported: The Arguments are: %s "  %(sys.argv))
+        pv.main()
 
         #update purview
         logging.warning("Terms will be imported into the catalog. The arguments are:")
@@ -159,10 +158,7 @@ def main(msg: func.QueueMessage):
             logging.warning("Results of the glossary update are:")
             logging.warning(f.getvalue())
             #add some logging for debugging purposes
-            logging.warning("listTermName length is : %s" %(len(listTermName)))
-            logging.warning("listdefinitionName length is : %s" %(len(listdefinitionName)))
-            logging.warning("number of times --termName is in sys.argv is: %s" %(str((sys.argv)).count('--termName')))
-            logging.warning("number of times --longDescription is in sys.argv is: %s" %(str((sys.argv)).count('--longDescription')))
+            logging.warning("payload length is : %s" %(len(payload_file)))
         except AttributeError as error:
             # Output expected AttributeErrors.
             logging.error("failed to update Azure Purview because of an attribute error")
@@ -171,3 +167,8 @@ def main(msg: func.QueueMessage):
         except:
             logging.error("failed to update Azure Purview")
             logging.error(sys.exc_info()[0])
+            logging.error("Results of the glossary update are:")
+            logging.error(f.getvalue())
+            #add some logging for debugging purposes
+            logging.warning("payload length is : %s" %(len(payload_file)))
+            logging.exception("The exception is:")

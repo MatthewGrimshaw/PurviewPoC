@@ -9,10 +9,10 @@
   },
   "logging": {
     "logLevel": {
-      "Function.CreateGlossaryItems": "Warning",
+      "Function.CreateGlossaryItems": "Information",
       "Function.GetBeGreper": "Information",
       "Function.getEntities": "Information",
-      "Host": "Error",
+      "Host": "Warning",
       "Function": "Warning",
       "Host.Aggregator": "Warning",
       "default": "Warning"

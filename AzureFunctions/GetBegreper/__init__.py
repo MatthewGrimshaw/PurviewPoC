@@ -1,5 +1,5 @@
 import logging
-import urllib.request
+import rdflib
 import json
 import unicodedata
 import sys
@@ -11,60 +11,6 @@ from azure.storage.queue import (
 )
 
 import os, uuid
-
-def parse_json_recursively(json_object, target_key):    
-    if type(json_object) is dict:
-            for key in json_object:
-                if key == target_key:
-                    if target_key =='publisher':
-                            return(json_object[target_key]['name'], json_object[target_key]['uri'])
-                    for k,v in json_object[target_key].items():
-                        if type(v) == dict and target_key =='definition':                   
-                            if 'nb' in v:
-                                return(v['nb'])
-                            elif 'nn' in v:
-                                return(v['nn'])
-                            elif 'nb' in json_object['definition']['sources'][0]['text']:                                    
-                                return json_object['definition']['sources'][0]['text']['nb']
-                            elif 'nn' in json_object['definition']['sources'][0]['text']:                                    
-                                return json_object['definition']['sources'][0]['text']['nn']
-                                
-                        return(v)
-                else:
-                    parse_json_recursively(json_object[key], target_key)
-
-def outputQueueData(jsonObj, outputList):
-    purview_dict = {}
-
-    nameValue = parse_json_recursively(jsonObj, 'prefLabel')
-    if nameValue:            
-        purview_dict["termName"] = unicodedata.normalize('NFKD',nameValue)
-    else:
-        logging.error("could not find the name value")
-        return
-        
-    definitionvalue = parse_json_recursively(jsonObj, 'definition')
-    if definitionvalue:
-        purview_dict["longDescription"] = unicodedata.normalize('NFKD', definitionvalue)
-    else:
-        logging.info("could not find the description value")
-        
-    publishervalue = parse_json_recursively(jsonObj, 'publisher')
-    if publishervalue:
-        purview_dict["resourceName"] = unicodedata.normalize('NFKD', publishervalue[0])
-        purview_dict["resourceUrl"] = unicodedata.normalize('NFKD', publishervalue[1])
-    else:
-        logging.info("could not find the publisher value")    
-    
-    try:
-        outputList.append(purview_dict)
-        del purview_dict
-        del jsonObj
-    except:
-        logging.info("could not append the output list")
-        logging.error(sys.exc_info()[0])
-
-    return outputList
 
 def writeToAzureQueue(outputList):
         # send the output to the queue
@@ -78,8 +24,7 @@ def writeToAzureQueue(outputList):
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request.')
-
-    begrepUrl = 'https://data.norge.no/api/concepts'
+    
     outputList = []
     totalTerms = 0  
     search = req.params.get('search')
@@ -93,65 +38,95 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     if search:
         if search.lower() == 'bulkimport':
+            begrepUrl = 'https://concepts.fellesdatakatalog.digdir.no/collections'
             # bulk import all terms from the catalog
             logging.info("The search is: " + search)
-            count = 0
-            loop = True
-            while loop == True:
-                # The &size= value can actually go up 1000, but Azure Storage Queues only support max 64kb messages, so 150 seems to be the upper limit
-                # The bigger the size, the less messages are written, and the faster they are imported
-                # if there are too many terms in one message the import can fail. Best to set it to 75
-                xbegrepUrl = begrepUrl + '?page=' + (str(count)) + '&size=75'            
-                logging.info("The url is :" + xbegrepUrl)            
-                try:
-                    with urllib.request.urlopen(xbegrepUrl ) as url:
-                        data = json.loads(url.read().decode())
-                        pages = int(data['page']['totalPages'])
-                        logging.info("pages is : " + str(pages)) 
-                        logging.info("count is : " + str(count))
-                        logging.info("Loop is : " + str(loop))
-                        for jsonObj in data['_embedded']['concepts']:
-                            #parse the json 
-                            outputQueueData(jsonObj, outputList)                            
-                        #write to Azure queue
-                        writeToAzureQueue(outputList)
-                        totalTerms += len(outputList)
-                        outputList.clear()
-                        count += 1                            
-                        if(count == pages):
-                            loop = False
-                        del data
-                
-                except:
-                    logging.error("failed to open the url %s" %(begrepUrl))
-                    logging.error(sys.exc_info()[0])
-                    return func.HttpResponse(
-                        "Internal Error in the Function Execution - check the log files for more details",
-                        status_code=500
-                    )
                     
         else:
             # get a single item          
-            begrepUrl = begrepUrl + '/' + search
+            begrepUrl = 'https://fellesdatakatalog.digdir.no/api/concepts/' + '/' + search
             logging.info("The search is: " + search)
-            logging.info("The url is:" + begrepUrl)
-            try:
-                with urllib.request.urlopen(begrepUrl ) as url:
-                    data = json.loads(url.read().decode())
-                    outputQueueData(data, outputList)
-                    writeToAzureQueue(outputList)
-                    totalTerms += len(outputList)
-            except:
-                logging.error("failed to open the url %s" %(begrepUrl))
-                logging.error(sys.exc_info()[0])
+            logging.info("The url is:" + begrepUrl)            
+        
+        #create graph and parse url
+        g = rdflib.Graph()
+        g.parse(begrepUrl)
+
+        # Query the returned data
+        try:
+            query = g.query("""PREFIX ns1:    <https://data.norge.no/vocabulary/skosno#>
+                      SELECT DISTINCT  ?concept ?label ?subject
+                      WHERE
+                      {                             
+                          ?concept a skos:Concept .
+                          ?concept skosxl:prefLabel/skosxl:literalForm ?label .
+                          ?concept <http://difi.no/skosno#betydningsbeskrivelse>/rdfs:label ?subject .
+                          FILTER NOT EXISTS {?concept ns1:definisjon/rdfs:label ?xsubject .}
+                          FILTER NOT EXISTS {?concept <http://difi.no/skosno#betydningsbeskrivelse>/dct:source/rdfs:label ?ysubject .}
+                      }
+                      """)
+            for res in query:
+                purview_dict = {}
+                purview_dict["termName"] = res.label
+                purview_dict["longDescription"] = res.subject
+                outputList.append(purview_dict)
+                totalTerms +=1
+            
+            query = g.query("""PREFIX ns1:    <https://data.norge.no/vocabulary/skosno#>
+                      SELECT DISTINCT  ?concept ?label ?subject
+                      WHERE
+                      {                             
+                          ?concept a skos:Concept .
+                          ?concept skosxl:prefLabel/skosxl:literalForm ?label .
+                          ?concept <http://difi.no/skosno#betydningsbeskrivelse>/dct:source/rdfs:label ?subject .
+                          FILTER NOT EXISTS {?concept ns1:definisjon/rdfs:label ?xsubject .}
+                          
+                      }
+                      """)
+            for res in query:
+                purview_dict = {}
+                purview_dict["termName"] = res.label
+                purview_dict["longDescription"] = res.subject
+                outputList.append(purview_dict)
+                totalTerms +=1
+            
+            query = g.query("""PREFIX ns1:    <https://data.norge.no/vocabulary/skosno#>
+                      SELECT DISTINCT  ?concept ?label ?subject
+                      WHERE
+                      {                             
+                          ?concept a skos:Concept .
+                          ?concept skosxl:prefLabel/skosxl:literalForm ?label .
+                          ?concept ns1:definisjon/rdfs:label ?subject .
+                          FILTER NOT EXISTS {?concept <http://difi.no/skosno#betydningsbeskrivelse>/dct:source/rdfs:label ?xsubject .}
+                                                    
+                      }
+                      """)
+            for res in query:
+                purview_dict = {}
+                purview_dict["termName"] = res.label
+                purview_dict["longDescription"] = res.subject
+                outputList.append(purview_dict)
+                totalTerms +=1
+        
+        except:
+            logging.error("failed to parse the url %s" %(begrepUrl))
+            logging.error(sys.exc_info()[0])
                 
-                return func.HttpResponse(
+            return func.HttpResponse(
                     "Internal Error in the Function Execution - check the log files for more details",
                     status_code=500
                 )
         
         #log  
-        logging.info("Total terms written to queue storage are: %s" %(totalTerms))    
+        logging.info("Total terms written to queue storage are: %s" %(totalTerms))
+
+        # write terms to queue in batches of 75 so that the queue ites are not too large
+        chunk_size = 75
+        for i in range(0, len(outputList), chunk_size):
+            chunk = outputList[i:i+chunk_size]    
+            # process chunk of size <= chunk_size 
+            writeToAzureQueue(chunk)
+
         return func.HttpResponse(f"Function executed successfully. The term passed to the function was: {search}. The total number of terms written to the queue is: {totalTerms}")
         
     else:        
@@ -159,4 +134,3 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
              "Pass a valid search value or bulkImport in the query string or in the request body to import terms.",
              status_code=200
         )
- 

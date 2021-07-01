@@ -5,6 +5,7 @@ $suffix = '<>' ##
 $location = '<>'
 $expertupn = '<>'
 $stewardupn = '<>'
+$publisher = '<>'
 
 #### no need to change anything below this line ####
 $suffix = $suffix.ToLower()
@@ -19,7 +20,7 @@ $storageaccountname = $suffix + 'purviewpocsa'
 $appServicePlanName = $suffix + 'appserviceplan'
 $serviceprincipalname = $suffix + 'purviewpocsp'
 
-#Check 7-Zip ios installed
+#Check 7-Zip is installed
 $7zipPath = "$env:ProgramFiles\7-Zip\7z.exe"
 if(test-path $7zipPath){
   Set-Alias 7z $7zipPath
@@ -39,7 +40,7 @@ try {
     az version
   }
 
-#allow AZ CLI extesnions to be installed
+#allow AZ CLI extensions to be installed
 az config set extension.use_dynamic_install=yes_without_prompt
 
 #login to azure
@@ -101,6 +102,7 @@ $appId = $(az ad sp list --display-name $serviceprincipalname --query [].appId -
 #az ad sp delete --id $objectid
 
 # Create storage queues
+$storageaccountname = $storageaccountname.substring(0,23)
 push-location
 set-location '.\Infra'
 az deployment group create --resource-group $resourceGroupName --template-file .\azurestorage.template.json --parameters "name=$storageaccountname"  "location=$location"
@@ -141,7 +143,10 @@ $instrumentationKey = (az monitor app-insights component show `
 --query instrumentationKey `
 --output tsv)
 
+
+#az keyvault purge --name $keyVaultName
 # create key vault
+$keyVaultName = $keyVaultName.substring(0,23)
 az keyvault create --location $location --name $keyVaultName --resource-group $resourceGroupName
 
 # create secrets
@@ -155,6 +160,7 @@ az keyvault secret set --name 'AZURECLIENTSECRET' --vault-name $keyVaultName --v
 az appservice plan create --resource-group $resourceGroupName --name $appServicePlanName --is-linux
 
 # Create function app
+$functionAppName = $functionAppName.substring(0,23)
 az functionapp create `
 --resource-group $resourceGroupName `
 --name $functionAppName `
@@ -196,11 +202,14 @@ az functionapp config appsettings set --name $functionAppName --resource-group $
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "stewardId=$stewardId"
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "glossaryGuid=$glossaryGuid"
 az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "AzureWebJobsStorage=$storageEndpoint"
+az functionapp config appsettings set --name $functionAppName --resource-group $resourceGroupName --settings "publisher=$publisher"
 
-#wait 2 minutes for the function app to initialise
-Start-Sleep -s 120
+# wait 4 minutes for the function app to initialise
+Start-Sleep -s 240
 
-# Deploy finction app
+az functionapp show --name $functionAppName --resource-group $resourceGroupName --query state
+
+# Deploy function app
 $publishFolder = ".\AzureFunctions\*"
 
 # create the zip
@@ -234,5 +243,8 @@ $functionkey = az functionapp function keys list --function-name 'GetBegreper' -
 # 3) Run the Function to initate a bulk import of terms
 # $url = "https://$functionAppName.azurewebsites.net/api/GetBegreper?code=$functionkey&search=bulkImport"
 # Invoke-RestMethod -Method 'Get' -Uri $url
+
+
+
 
 
